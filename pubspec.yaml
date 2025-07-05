@@ -1,0 +1,54 @@
+# pubspec.yaml
+
+name: civilia
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.4 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.6
+  font_awesome_flutter: any # Correctly placed here
+
+  # Essential app dependencies moved to correct section
+  provider: ^6.0.5
+  image_picker: ^1.0.7
+  file_picker: ^8.0.0
+  audioplayers: ^6.0.0
+  intl: ^0.19.0
+  http_parser: ^4.0.2 # Or the latest version
+  mime: ^1.0.4 # Or the latest version
+
+  # Firebase Core and Services
+  firebase_core: ^2.27.0
+  firebase_auth: ^4.17.8
+  cloud_firestore: ^4.15.8
+  firebase_storage: ^11.6.9
+
+  # Google Maps and Geolocation
+  google_maps_flutter: ^2.6.0
+  geolocator: ^11.0.0
+  geocoding: ^2.0.0    # <— add this
+
+
+  http: ^1.2.1 # NEW: Add http client for API calls
+  shared_preferences: ^2.2.3 # NEW: For local token storage
+  permission_handler: ^11.3.1 # NEW: For managing permissions like NEARBY_WIFI_DEVICES
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  # firebase_tools: ^0.4.0 # Removed this line, as it's causing conflicts and is not needed for runtime
+
+# The "flutter" section remains the same
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
