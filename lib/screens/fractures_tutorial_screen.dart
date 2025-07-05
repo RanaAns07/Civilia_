@@ -1,0 +1,167 @@
+// lib/screens/fractures_tutorial_screen.dart
+import 'package:flutter/material.dart';
+import 'package:civilia/main.dart'; // For neonBlue
+import 'package:civilia/widgets/bottom_navigation_bar.dart';
+
+class FracturesTutorialScreen extends StatefulWidget {
+  const FracturesTutorialScreen({super.key});
+
+  @override
+  State<FracturesTutorialScreen> createState() => _FracturesTutorialScreenState();
+}
+
+class _FracturesTutorialScreenState extends State<FracturesTutorialScreen> {
+  int _selectedIndex = 1; // Index for the "First Aid" tab
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+    switch (index) {
+      case 0:
+        Navigator.of(context).pushReplacementNamed('/home');
+        break;
+      case 1:
+        break;
+      case 2:
+        Navigator.of(context).pushReplacementNamed('/messageList');
+        break;
+      case 3:
+        Navigator.of(context).pushReplacementNamed('/profile');
+        break;
+      default:
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Fractures Tutorial'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios),
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.asset(
+                'assets/images/fracture_tutorial.png', // Placeholder image
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: 200,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 200,
+                    color: Theme.of(context).cardColor,
+                    child: Center(
+                      child: Text(
+                        'Fracture Tutorial Image Placeholder',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5)),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Emergency First Aid: Managing Fractures',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Theme.of(context).colorScheme.primary, fontSize: 24),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Learn how to recognize and provide initial care for suspected fractures.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 20),
+            _buildInstructionStep(
+              context,
+              '1',
+              'Assess the Injury',
+              'Look for deformity, swelling, bruising, or inability to move the limb. Do not try to realign the bone.',
+            ),
+            _buildInstructionStep(
+              context,
+              '2',
+              'Immobilize the Area',
+              'Use a splint (e.g., rigid material like a board or rolled newspaper) to immobilize the injured area, including the joints above and below the fracture.',
+            ),
+            _buildInstructionStep(
+              context,
+              '3',
+              'Apply Cold Pack',
+              'Apply a cold pack wrapped in a cloth to the injured area to reduce swelling and pain.',
+            ),
+            _buildInstructionStep(
+              context,
+              '4',
+              'Seek Medical Help',
+              'Transport the person to medical care immediately. Keep them still and comfortable during transport.',
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+      bottomNavigationBar: CustomBottomNavigationBar(
+        selectedIndex: _selectedIndex,
+        onItemTapped: _onItemTapped,
+      ),
+    );
+  }
+
+  Widget _buildInstructionStep(
+      BuildContext context, String stepNumber, String title, String description) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                stepNumber,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onPrimary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Theme.of(context).textTheme.titleMedium?.color, fontSize: 18),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
