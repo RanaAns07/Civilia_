@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "731841931000",
+    "project_id": "civilia-d6686",
+    "storage_bucket": "civilia-d6686.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:731841931000:android:b7130a64fececb7c7fbd0d",
+        "android_client_info": {
+          "package_name": "com.example.civilia"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAkHEtbCFyS3q_Rn8mb9V0Ad0rXGwhIZqs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:731841931000:android:c85a40d0604f368b7fbd0d",
+        "android_client_info": {
+          "package_name": "com.example.civilia_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAkHEtbCFyS3q_Rn8mb9V0Ad0rXGwhIZqs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

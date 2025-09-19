@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:civilia/main.dart'; // For neonBlue
+import 'package:civilia_app/main.dart'; // For neonBlue
 
 class MessageBubble extends StatelessWidget {
   final String sender;

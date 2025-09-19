@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:civilia/main.dart';
-import 'package:geocoding/geocoding.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
+import 'package:civilia_app/main.dart'; // For neonBlue
+import 'package:geocoding/geocoding.dart'; // For reverse geocoding
+import 'package:google_maps_flutter/google_maps_flutter.dart'; // For map interaction
+import 'package:geolocator/geolocator.dart'; // For getting current location
+import 'package:image_picker/image_picker.dart'; // For picking images
+import 'package:http/http.dart' as http; // For making HTTP requests
+import 'package:http_parser/http_parser.dart'; // For MediaType
 import 'dart:io'; // For File
 import 'dart:convert'; // For jsonDecode
-import 'package:civilia/utils/token_manager.dart'; // To get authentication token
-import 'package:civilia/screens/map_picker_screen.dart'; // NEW: Import MapPickerScreen
+import 'package:civilia_app/utils/token_manager.dart'; // To get authentication token
+import 'package:civilia_app/utils/string_extensions.dart'; // For toCapitalized extension
+
+// Import MapPickerScreen
+import 'package:civilia_app/screens/map_picker_screen.dart';
 
 class CrisisReportScreen extends StatefulWidget {
   final LatLng? initialLocation; // Pass current location from Home Screen
@@ -30,7 +33,8 @@ class _CrisisReportScreenState extends State<CrisisReportScreen> {
   bool _isLoading = false;
 
   // Define your Django backend URL
-  final String _baseUrl = 'https://web-production-15734.up.railway.app/api'; // UPDATED TO LIVE URL
+  // IMPORTANT: Replace this with your actual Django backend URL.
+  final String _baseUrl = 'https://web-production-15734.up.railway.app/api'; // Placeholder URL
 
   final List<String> _incidentTypes = [
     'BOMBING',
@@ -143,7 +147,7 @@ class _CrisisReportScreenState extends State<CrisisReportScreen> {
     }
   }
 
-  // NEW: Navigate to MapPickerScreen to choose location
+  // Navigate to MapPickerScreen to choose location
   Future<void> _pickLocationOnMap() async {
     final LatLng? pickedLocation = await Navigator.of(context).push(
       MaterialPageRoute(
@@ -159,7 +163,6 @@ class _CrisisReportScreenState extends State<CrisisReportScreen> {
       _showSnackBar('Location picked from map!');
     }
   }
-
 
   // Reverse geocode to get a human-readable location name
   Future<void> _reverseGeocodeLocation(LatLng location) async {
@@ -212,7 +215,6 @@ class _CrisisReportScreenState extends State<CrisisReportScreen> {
 
       request.fields['incident_type'] = _selectedIncidentType!;
       request.fields['description'] = _descriptionController.text;
-      // NEW: Format latitude and longitude to limit decimal places
       request.fields['latitude'] = _selectedLocation!.latitude.toStringAsFixed(8); // Limit to 8 decimal places
       request.fields['longitude'] = _selectedLocation!.longitude.toStringAsFixed(8); // Limit to 8 decimal places
       request.fields['location_name'] = _locationNameController.text;
@@ -427,7 +429,7 @@ class _CrisisReportScreenState extends State<CrisisReportScreen> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: _pickLocationOnMap, // NEW: Call map picker
+                              onPressed: _pickLocationOnMap, // Call map picker
                               icon: const Icon(Icons.map_outlined),
                               label: const Text('Pick on Map'),
                               style: ElevatedButton.styleFrom(
@@ -467,16 +469,5 @@ class _CrisisReportScreenState extends State<CrisisReportScreen> {
         ),
       ),
     );
-  }
-}
-
-// Extension to capitalize first letter of each word in a string
-extension StringExtension on String {
-  String toCapitalized() {
-    if (isEmpty) return this;
-    return split(' ').map((word) {
-      if (word.isEmpty) return '';
-      return word[0].toUpperCase() + word.substring(1).toLowerCase();
-    }).join(' ');
   }
 }

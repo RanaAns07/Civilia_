@@ -1,8 +1,8 @@
-// lib/screens/crisis_detail_screen.dart (UPDATED with Resolve Button & Pop Result)
 import 'package:flutter/material.dart';
-import 'package:civilia/main.dart'; // For neonBlue
-import 'package:civilia/screens/home_screen.dart'; // Import CrisisIncident model
-import 'package:civilia/utils/token_manager.dart'; // Import TokenManager
+import 'package:civilia_app/main.dart'; // For neonBlue
+import 'package:civilia_app/screens/home_screen.dart'; // Import CrisisIncident model
+import 'package:civilia_app/utils/token_manager.dart'; // Import TokenManager
+import 'package:civilia_app/utils/string_extensions.dart'; // For toCapitalized extension
 import 'package:http/http.dart' as http; // For making HTTP requests
 import 'dart:convert'; // For jsonDecode
 
@@ -20,7 +20,8 @@ class _CrisisDetailScreenState extends State<CrisisDetailScreen> {
   bool _isLoadingAction = false;
 
   // Define your Django backend URL
-  final String _baseUrl = 'https://web-production-15734.up.railway.app/api'; // UPDATED TO LIVE URL
+  // IMPORTANT: Replace this with your actual Django backend URL.
+  final String _baseUrl = 'https://web-production-15734.up.railway.app/api'; // Placeholder URL
 
   @override
   void initState() {
@@ -69,7 +70,7 @@ class _CrisisDetailScreenState extends State<CrisisDetailScreen> {
         setState(() {
           _currentIncident = CrisisIncident.fromJson(jsonDecode(response.body));
         });
-        // NEW: Pop back to previous screen and pass a result to indicate update
+        // Pop back to previous screen and pass a result to indicate update
         Navigator.of(context).pop(true); // Pass 'true' to indicate resolution
       } else {
         final Map<String, dynamic> errorData = jsonDecode(response.body);
@@ -102,123 +103,123 @@ class _CrisisDetailScreenState extends State<CrisisDetailScreen> {
       body: _isLoadingAction
           ? const Center(child: CircularProgressIndicator(color: neonBlue))
           : SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-          // Incident Image (if available)
-          if (_currentIncident.imageUrl != null && _currentIncident.imageUrl!.isNotEmpty)
-          ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-      child: Image.network(
-        _currentIncident.imageUrl!,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: 250,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            height: 250,
-            color: Theme.of(context).cardColor,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.broken_image, size: 50, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5)),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Image not available',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5)),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Incident Image (if available)
+            if (_currentIncident.imageUrl != null && _currentIncident.imageUrl!.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  _currentIncident.imageUrl!,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: 250,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      height: 250,
+                      color: Theme.of(context).cardColor,
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.broken_image, size: 50, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5)),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Image not available',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              )
+            else
+              Container(
+                height: 150,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.image_not_supported_outlined, size: 50, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5)),
+                      const SizedBox(height: 10),
+                      Text(
+                        'No image provided for this incident.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5)),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
+            const SizedBox(height: 20),
+
+            // Incident Type
+            _buildDetailRow(context, 'Incident Type', _currentIncident.incidentType.replaceAll('_', ' ').toCapitalized(), Icons.warning_amber_rounded),
+
+            // Description
+            if (_currentIncident.description != null && _currentIncident.description!.isNotEmpty)
+              _buildDetailRow(context, 'Description', _currentIncident.description!, Icons.description_outlined),
+
+            // Location Name
+            if (_currentIncident.locationName?.isNotEmpty ?? false)
+              _buildDetailRow(
+                context,
+                'Location',
+                _currentIncident.locationName!,
+                Icons.location_on_outlined,
+              )
+            else
+              _buildDetailRow(
+                context,
+                'Coordinates',
+                'Lat: ${_currentIncident.latitude.toStringAsFixed(6)}, '
+                    'Lng: ${_currentIncident.longitude.toStringAsFixed(6)}',
+                Icons.location_on_outlined,
+              ),
+
+            // Reported By
+            _buildDetailRow(context, 'Reported By', _currentIncident.reportedByUsername, Icons.person_outline),
+
+            // Timestamp
+            _buildDetailRow(context, 'Time', _formatTimestamp(_currentIncident.timestamp), Icons.access_time),
+
+            // Status
+            _buildDetailRow(
+              context,
+              'Status',
+              _currentIncident.isResolved ? 'Resolved' : 'Active',
+              _currentIncident.isResolved ? Icons.check_circle_outline : Icons.error_outline,
+              valueColor: _currentIncident.isResolved ? Colors.greenAccent : Colors.redAccent,
             ),
-          );
-        },
-      ),
-    )
-    else
-    Container(
-    height: 150,
-    width: double.infinity,
-    decoration: BoxDecoration(
-    color: Theme.of(context).cardColor,
-    borderRadius: BorderRadius.circular(12),
-    ),
-    child: Center(
-    child: Column(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-    Icon(Icons.image_not_supported_outlined, size: 50, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5)),
-    const SizedBox(height: 10),
-    Text(
-    'No image provided for this incident.',
-    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5)),
-    ),
-    ],
-    ),
-    ),
-    ),
-    const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-    // Incident Type
-    _buildDetailRow(context, 'Incident Type', _currentIncident.incidentType.replaceAll('_', ' ').toCapitalized(), Icons.warning_amber_rounded),
-
-    // Description
-    if (_currentIncident.description != null && _currentIncident.description!.isNotEmpty)
-    _buildDetailRow(context, 'Description', _currentIncident.description!, Icons.description_outlined),
-
-    // Location Name
-    if (_currentIncident.locationName?.isNotEmpty ?? false)
-                  _buildDetailRow(
-                    context,
-                    'Location',
-                    _currentIncident.locationName!,
-                    Icons.location_on_outlined,
-                  )
-                else
-                  _buildDetailRow(
-                    context,
-                    'Coordinates',
-                    'Lat: ${_currentIncident.latitude.toStringAsFixed(6)}, '
-                        'Lng: ${_currentIncident.longitude.toStringAsFixed(6)}',
-                    Icons.location_on_outlined,
+            // Action Buttons (e.g., "Mark as Resolved")
+            if (!_currentIncident.isResolved) // Only show if not already resolved
+              Center(
+                child: ElevatedButton.icon(
+                  onPressed: _markAsResolved,
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: const Text('Mark as Resolved'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   ),
-
-    // Reported By
-    _buildDetailRow(context, 'Reported By', _currentIncident.reportedByUsername, Icons.person_outline),
-
-    // Timestamp
-    _buildDetailRow(context, 'Time', _formatTimestamp(_currentIncident.timestamp), Icons.access_time),
-
-    // Status
-    _buildDetailRow(
-    context,
-    'Status',
-    _currentIncident.isResolved ? 'Resolved' : 'Active',
-    _currentIncident.isResolved ? Icons.check_circle_outline : Icons.error_outline,
-    valueColor: _currentIncident.isResolved ? Colors.greenAccent : Colors.redAccent,
-    ),
-    const SizedBox(height: 20),
-
-    // Action Buttons (e.g., "Mark as Resolved")
-    if (!_currentIncident.isResolved) // Only show if not already resolved
-    Center(
-    child: ElevatedButton.icon(
-    onPressed: _markAsResolved,
-    icon: const Icon(Icons.check_circle_outline),
-    label: const Text('Mark as Resolved'),
-    style: ElevatedButton.styleFrom(
-    backgroundColor: Colors.green,
-    foregroundColor: Colors.white,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-    ),
-    ),
-    ),
-    const SizedBox(height: 20),
-    ],
-    ),
-    ),
+                ),
+              ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
     );
   }
 

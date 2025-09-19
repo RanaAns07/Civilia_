@@ -1,17 +1,4 @@
-# --- AL (Dynamics 365 Business Central) ---
-# Template for AL projects
-.vscode/
-.alcache/
-.alpackages/
-.snapshots/
-.output/
-*.app
-rad.json
-*.g.xlf
-*.flf
-TestResults.xml
-
-# --- Miscellaneous ---
+# Miscellaneous
 *.class
 *.log
 *.pyc
@@ -25,13 +12,18 @@ TestResults.xml
 .swiftpm/
 migrate_working_dir/
 
-# --- IntelliJ related ---
+# IntelliJ related
 *.iml
 *.ipr
 *.iws
 .idea/
 
-# --- Flutter/Dart/Pub related ---
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
@@ -41,14 +33,13 @@ migrate_working_dir/
 .pub/
 /build/
 
-# --- Symbolication related ---
+# Symbolication related
 app.*.symbols
 
-# --- Obfuscation related ---
+# Obfuscation related
 app.*.map.json
 
-# --- Android build output ---
+# Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile
 /android/app/release
-

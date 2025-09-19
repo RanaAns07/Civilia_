@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:civilia/main.dart'; // For neonBlue
-import 'package:civilia/utils/token_manager.dart'; // To check login status
+import 'package:civilia_app/main.dart'; // For neonBlue
 import 'package:shared_preferences/shared_preferences.dart'; // For first-time launch check
+import 'package:civilia_app/utils/token_manager.dart'; // To check login status
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -18,8 +18,8 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _navigateToNextScreen() async {
-    // Simulate some loading time
-    await Future.delayed(const Duration(seconds: 2));
+    // Simulate some loading time for a better user experience
+    await Future.delayed(const Duration(seconds: 3));
 
     final prefs = await SharedPreferences.getInstance();
     final bool? isFirstLaunch = prefs.getBool('isFirstLaunch');
@@ -53,19 +53,19 @@ class _SplashScreenState extends State<SplashScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.shield_outlined,
+              Icons.shield_outlined, // A relevant icon for safety/protection
               size: 100,
               color: neonBlue,
             ),
             const SizedBox(height: 20),
             Text(
               'Civilia',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 48, letterSpacing: 2),
+              style: Theme.of(context).textTheme.displaySmall?.copyWith(fontSize: 48, letterSpacing: 2),
             ),
             const SizedBox(height: 10),
             Text(
               'Your Safety, Our Priority',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontStyle: FontStyle.italic, color: Colors.white70),
             ),
             const SizedBox(height: 50),
             CircularProgressIndicator(

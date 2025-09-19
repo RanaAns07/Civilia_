@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:civilia/main.dart'; // For neonBlue
-import 'package:http/http.dart' as http; // Import the http package
+import 'package:civilia_app/main.dart'; // For neonBlue
+import 'package:http/http.dart' as http; // Import the http package for Django API
 import 'dart:convert'; // For encoding/decoding JSON
-import 'package:civilia/utils/token_manager.dart'; // Import the new TokenManager
+import 'package:civilia_app/utils/token_manager.dart'; // Import the TokenManager
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 
 class LoginScreen extends StatefulWidget {
@@ -18,8 +18,18 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   final FirebaseAuth _auth = FirebaseAuth.instance; // Firebase Auth instance
 
-  // Define your Django backend URL
-  final String _baseUrl = 'https://web-production-15734.up.railway.app/api'; // IMPORTANT: Adjust this if needed!
+
+  final String _baseUrl = 'https://web-production-15734.up.railway.app/api'; // Placeholder URL
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
+        backgroundColor: isError ? Colors.redAccent : neonBlue,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
 
   void _login() async {
     setState(() {
@@ -42,47 +52,32 @@ class _LoginScreenState extends State<LoginScreen> {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         final String accessToken = responseData['access'];
         final String refreshToken = responseData['refresh'];
-        final String? firebaseCustomToken = responseData['firebase_custom_token']; // NEW: Get Firebase custom token
+        final String? firebaseCustomToken = responseData['firebase_custom_token']; // Get Firebase custom token
 
         // Save tokens using the TokenManager (for Django API calls)
         await TokenManager.saveTokens(accessToken, refreshToken);
 
-        // NEW: Sign in to Firebase Authentication with the custom token
+        // Sign in to Firebase Authentication with the custom token
         if (firebaseCustomToken != null) {
           try {
             await _auth.signInWithCustomToken(firebaseCustomToken);
             debugPrint('Successfully signed into Firebase with custom token.');
-            // Optionally update Firebase user's display name if needed
+            // Optionally update Firebase user's display name
             if (_auth.currentUser != null && _auth.currentUser!.displayName == null) {
               await _auth.currentUser!.updateDisplayName(_usernameController.text);
             }
           } on FirebaseAuthException catch (e) {
             debugPrint('Firebase Auth Error during custom token sign-in: ${e.code} - ${e.message}');
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Firebase login failed: ${e.message}', style: TextStyle(color: Theme.of(context).colorScheme.onBackground)),
-                backgroundColor: Colors.orangeAccent, // Use a warning color
-              ),
-            );
+            _showSnackBar('Firebase login failed: ${e.message}', isError: true);
             // Even if Firebase login fails, proceed if Django login was successful
             // This might mean Firebase services won't work, but the app can still use Django APIs.
           }
         } else {
           debugPrint('No Firebase custom token received from Django.');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Login successful, but Firebase features may be limited (no Firebase token).', style: TextStyle(color: Theme.of(context).colorScheme.onBackground)),
-              backgroundColor: Colors.orangeAccent,
-            ),
-          );
+          _showSnackBar('Login successful, but Firebase features may be limited (no Firebase token).', isError: false);
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Login Successful!', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
-            backgroundColor: neonBlue,
-          ),
-        );
+        _showSnackBar('Login Successful!');
         Navigator.of(context).pushReplacementNamed('/home');
       } else {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -92,27 +87,23 @@ class _LoginScreenState extends State<LoginScreen> {
         } else if (responseData.values.isNotEmpty) {
           errorMessage = responseData.values.join(', ');
         }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage, style: TextStyle(color: Theme.of(context).colorScheme.onBackground)),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
+        _showSnackBar(errorMessage, isError: true);
       }
     } catch (e) {
       debugPrint('Network error during login: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Network error: $e', style: TextStyle(color: Theme.of(context).colorScheme.onBackground)),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      _showSnackBar('Network error: $e', isError: true);
     } finally {
       setState(() {
         _isLoading = false;
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -133,7 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 16),
               Text(
                 'Civilia',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 36, letterSpacing: 1.5),
+                style: Theme.of(context).textTheme.displaySmall?.copyWith(fontSize: 36, letterSpacing: 1.5),
               ),
               const SizedBox(height: 8),
               Text(

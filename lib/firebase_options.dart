@@ -42,42 +42,6 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyD7-xpRoaNMqK5jNvWqwAFsKN4StCecqeM',
-    appId: '1:731841931000:web:d485a85bb96d3c8d7fbd0d',
-    messagingSenderId: '731841931000',
-    projectId: 'civilia-d6686',
-    authDomain: 'civilia-d6686.firebaseapp.com',
-    storageBucket: 'civilia-d6686.firebasestorage.app',
-    measurementId: 'G-T9V2201R89',
-  );
-
-  static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAkHEtbCFyS3q_Rn8mb9V0Ad0rXGwhIZqs',
-    appId: '1:731841931000:android:b7130a64fececb7c7fbd0d',
-    messagingSenderId: '731841931000',
-    projectId: 'civilia-d6686',
-    storageBucket: 'civilia-d6686.firebasestorage.app',
-  );
-
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyCvfXRFguaTYWd3iEav4uPwOIf0A0hgq-M',
-    appId: '1:731841931000:ios:580e22cd07f3a1d07fbd0d',
-    messagingSenderId: '731841931000',
-    projectId: 'civilia-d6686',
-    storageBucket: 'civilia-d6686.firebasestorage.app',
-    iosBundleId: 'com.example.civilia',
-  );
-
-  static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyCvfXRFguaTYWd3iEav4uPwOIf0A0hgq-M',
-    appId: '1:731841931000:ios:580e22cd07f3a1d07fbd0d',
-    messagingSenderId: '731841931000',
-    projectId: 'civilia-d6686',
-    storageBucket: 'civilia-d6686.firebasestorage.app',
-    iosBundleId: 'com.example.civilia',
-  );
-
-  static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyD7-xpRoaNMqK5jNvWqwAFsKN4StCecqeM',
     appId: '1:731841931000:web:0706f74f72391f2b7fbd0d',
     messagingSenderId: '731841931000',
     projectId: 'civilia-d6686',
@@ -85,4 +49,41 @@ class DefaultFirebaseOptions {
     storageBucket: 'civilia-d6686.firebasestorage.app',
     measurementId: 'G-1MJ9FYZJKB',
   );
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyAkHEtbCFyS3q_Rn8mb9V0Ad0rXGwhIZqs',
+    appId: '1:731841931000:android:c85a40d0604f368b7fbd0d',
+    messagingSenderId: '731841931000',
+    projectId: 'civilia-d6686',
+    storageBucket: 'civilia-d6686.firebasestorage.app',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyCvfXRFguaTYWd3iEav4uPwOIf0A0hgq-M',
+    appId: '1:731841931000:ios:24dac5ac147758597fbd0d',
+    messagingSenderId: '731841931000',
+    projectId: 'civilia-d6686',
+    storageBucket: 'civilia-d6686.firebasestorage.app',
+    iosBundleId: 'com.example.civiliaApp',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyCvfXRFguaTYWd3iEav4uPwOIf0A0hgq-M',
+    appId: '1:731841931000:ios:24dac5ac147758597fbd0d',
+    messagingSenderId: '731841931000',
+    projectId: 'civilia-d6686',
+    storageBucket: 'civilia-d6686.firebasestorage.app',
+    iosBundleId: 'com.example.civiliaApp',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyD7-xpRoaNMqK5jNvWqwAFsKN4StCecqeM',
+    appId: '1:731841931000:web:34c38dc3f87fd6e57fbd0d',
+    messagingSenderId: '731841931000',
+    projectId: 'civilia-d6686',
+    authDomain: 'civilia-d6686.firebaseapp.com',
+    storageBucket: 'civilia-d6686.firebasestorage.app',
+    measurementId: 'G-68QN163M49',
+  );
+
 }

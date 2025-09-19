@@ -1,18 +1,19 @@
-// lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
-import 'package:civilia/main.dart'; // For neonBlue
-import 'package:civilia/widgets/bottom_navigation_bar.dart';
+import 'package:civilia_app/main.dart'; // For neonBlue and ThemeNotifier
+import 'package:civilia_app/widgets/bottom_navigation_bar.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart'; // Import Google Maps
 import 'package:geolocator/geolocator.dart'; // Import Geolocation
-import 'package:civilia/utils/token_manager.dart'; // For logout functionality (implicitly used in app flow)
+import 'package:civilia_app/utils/token_manager.dart'; // For logout functionality (implicitly used in app flow)
 import 'package:http/http.dart' as http; // For making HTTP requests
 import 'dart:convert'; // For jsonDecode
 import 'dart:math'; // For min/max in LatLngBounds calculation
 import 'dart:async'; // For Timer and Future.delayed
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart'; // For HapticFeedback
+import 'package:civilia_app/utils/string_extensions.dart'; // For toCapitalized extension
 
-import 'crisis_detail_screen.dart';
-import 'crisis_report_screen.dart'; // For HapticFeedback
+// Import other screens that will be navigated to
+import 'package:civilia_app/screens/crisis_detail_screen.dart';
+import 'package:civilia_app/screens/crisis_report_screen.dart';
 
 // Define a simple CrisisIncident model for the frontend
 class CrisisIncident {
@@ -48,14 +49,13 @@ class CrisisIncident {
       description: json['description'],
       latitude: double.parse(json['latitude'].toString()), // Ensure parsing to double
       longitude: double.parse(json['longitude'].toString()), // Ensure parsing to double
-      imageUrl: json['image'] != null ? json['image'] as String : null,
+      imageUrl: json['image'] != null && json['image'].isNotEmpty ? json['image'] as String : null,
       timestamp: DateTime.parse(json['timestamp']),
       isResolved: json['is_resolved'],
       locationName: json['location_name'],
     );
   }
 }
-
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -73,7 +73,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final Set<Marker> _markers = {}; // Set to store map markers (for incidents and user)
 
   // Define your Django backend URL
-  final String _baseUrl = 'https://web-production-15734.up.railway.app/api'; // UPDATED TO LIVE URL
+  // IMPORTANT: Replace this with your actual Django backend URL.
+  final String _baseUrl = 'https://web-production-15734.up.railway.app/api'; // Placeholder URL
 
   @override
   void initState() {
@@ -161,7 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       // Fetch only active (unresolved) incidents for display on map
-      final Uri incidentsUri = Uri.parse('$_baseUrl/incidents/?is_resolved=false'); // NEW: Filter for unresolved
+      final Uri incidentsUri = Uri.parse('$_baseUrl/incidents/?is_resolved=false'); // Filter for unresolved
       debugPrint('Fetching incidents from: $incidentsUri');
 
       final response = await http.get(
@@ -193,8 +194,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 markerId: MarkerId('incident_${incident.id}'),
                 position: LatLng(incident.latitude, incident.longitude),
                 infoWindow: InfoWindow(
-                    title: StringExtension(incident.incidentType.replaceAll('_', ' ')).toCapitalized(),
-                    snippet: incident.description ?? 'Tap for details', // Changed snippet text
+                    title: incident.incidentType.replaceAll('_', ' ').toCapitalized(),
+                    snippet: incident.description ?? 'Tap for details',
                     onTap: () async { // Make onTap async to await result from detail screen
                       // Navigate to CrisisDetailScreen on marker info window tap
                       final bool? incidentResolved = await Navigator.of(context).push(
@@ -258,7 +259,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -278,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.of(context).pushReplacementNamed('/firstAidCategories');
         break;
       case 2: // Messages
-        Navigator.of(context).pushReplacementNamed('/messageList'); // Navigate to MessageListScreen
+        Navigator.of(context).pushReplacementNamed('/bluetoothChat');
         break;
       case 3: // Profile
         Navigator.of(context).pushReplacementNamed('/profile');
@@ -306,7 +306,7 @@ class _HomeScreenState extends State<HomeScreen> {
           initialLocation: _currentLocation, // Pass the current location to the report screen
         ),
       ),
-    ).then((result) { // NEW: Use .then to refresh incidents after returning
+    ).then((result) { // Use .then to refresh incidents after returning
       if (result == true) { // If a new incident was reported, refresh
         _fetchCrisisIncidents();
       }
@@ -374,7 +374,6 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
   }
-
 
   // Function to show SOS confirmation dialog
   void _showSosConfirmationDialog(BuildContext context) {
@@ -606,16 +605,5 @@ class _HomeScreenState extends State<HomeScreen> {
         onItemTapped: _onItemTapped,
       ),
     );
-  }
-}
-
-// Extension to capitalize first letter of each word in a string
-extension StringExtension on String {
-  String toCapitalized() {
-    if (isEmpty) return this;
-    return split(' ').map((word) {
-      if (word.isEmpty) return '';
-      return word[0].toUpperCase() + word.substring(1).toLowerCase();
-    }).join(' ');
   }
 }

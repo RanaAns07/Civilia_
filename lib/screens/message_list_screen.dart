@@ -1,29 +1,212 @@
-// lib/screens/message_list_screen.dart (UPDATED for Firestore)
 import 'package:flutter/material.dart';
-import 'package:civilia/main.dart'; // For neonBlue
-import 'package:civilia/widgets/bottom_navigation_bar.dart';
-import 'package:civilia/screens/messages_screen.dart'; // To navigate to individual message screen
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'dart:async';
+import 'dart:convert'; // For utf8 encoding/decoding
+import 'package:civilia_app/widgets/bottom_navigation_bar.dart'; // Import CustomBottomNavigationBar
 
-import 'package:cloud_firestore/cloud_firestore.dart'; // NEW: Import Cloud Firestore
-import 'package:firebase_auth/firebase_auth.dart'; // NEW: Import Firebase Auth
+// Define custom UUIDs for our BLE service and characteristic
+// These are unique identifiers for your custom BLE communication
+// You can generate your own UUIDs online (e.g., uuidgenerator.net)
+const String serviceUuid = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+const String characteristicUuid = "beb5483e-36e1-4501-b57f-b02400000001";
 
-class MessageListScreen extends StatefulWidget {
-  const MessageListScreen({super.key});
+class BleChatScreen extends StatefulWidget {
+  const BleChatScreen({super.key});
 
   @override
-  State<MessageListScreen> createState() => _MessageListScreenState();
+  State<BleChatScreen> createState() => _BleChatScreenState();
 }
 
-class _MessageListScreenState extends State<MessageListScreen> {
-  int _selectedIndex = 2; // Index for the "Messages" tab
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+class _BleChatScreenState extends State<BleChatScreen> {
+  final TextEditingController _messageController = TextEditingController();
+  final List<String> _messages = [];
+  bool _isScanning = false;
+  bool _isConnected = false;
+  BluetoothDevice? _connectedDevice;
+  BluetoothCharacteristic? _writeCharacteristic;
+  StreamSubscription<List<int>>? _characteristicSubscription;
+  StreamSubscription<BluetoothConnectionState>? _connectionStateSubscription;
+  StreamSubscription<BluetoothAdapterState>? _bluetoothAdapterStateSubscription; // For Bluetooth state changes
 
+  int _selectedIndex = 2; // Default to Messages tab for BLE Chat Screen
+
+  @override
+  void initState() {
+    super.initState();
+    _bluetoothAdapterStateSubscription = FlutterBluePlus.adapterState.listen((state) {
+      if (state != BluetoothAdapterState.on) {
+        _showSnackBar('Bluetooth is OFF. Please turn it ON.', isError: true);
+      }
+    });
+    _checkBluetoothState();
+  }
+
+  @override
+  void dispose() {
+    _characteristicSubscription?.cancel();
+    _connectionStateSubscription?.cancel();
+    _bluetoothAdapterStateSubscription?.cancel();
+    _connectedDevice?.disconnect(); // Disconnect from BLE device
+    FlutterBluePlus.stopScan(); // Stop any ongoing scan
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  // Check if Bluetooth is on and request permissions
+  void _checkBluetoothState() async {
+    var bluetoothState = await FlutterBluePlus.adapterState.first;
+    if (bluetoothState != BluetoothAdapterState.on) {
+      _showSnackBar('Bluetooth is OFF. Please turn it ON.', isError: true);
+    }
+  }
+
+  // Show a SnackBar message
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // Central Role: Scan for peripherals
+  void _startScan() async {
+    if (_isScanning) return;
+    setState(() {
+      _isScanning = true;
+      _messages.add("Scanning for devices...");
+    });
+
+    try {
+      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 15));
+      FlutterBluePlus.scanResults.listen((results) {
+        for (ScanResult r in results) {
+          debugPrint('${r.device.platformName} found! RSSI: ${r.rssi}');
+          // Filter for devices advertising our specific service UUID
+          // Note: For this to work, the *other* device needs to be advertising this UUID.
+          if (r.advertisementData.serviceUuids.contains(serviceUuid.toUpperCase())) {
+            _messages.add("Found device: ${r.device.platformName} (${r.device.remoteId})");
+            _connectToDevice(r.device);
+            FlutterBluePlus.stopScan(); // Stop scanning once found
+            break;
+          }
+        }
+      });
+      await FlutterBluePlus.isScanning.where((val) => val == false).first;
+      setState(() {
+        _isScanning = false;
+        _messages.add("Scan stopped.");
+      });
+    } catch (e) {
+      debugPrint("Scan error: $e");
+      _showSnackBar("Scan failed: $e", isError: true);
+      setState(() {
+        _isScanning = false;
+      });
+    }
+  }
+
+  // Central Role: Connect to a discovered peripheral
+  void _connectToDevice(BluetoothDevice device) async {
+    if (_isConnected) return;
+    setState(() {
+      _messages.add("Connecting to ${device.platformName}...");
+    });
+
+    _connectionStateSubscription = device.connectionState.listen((state) async {
+      if (state == BluetoothConnectionState.connected) {
+        setState(() {
+          _isConnected = true;
+          _connectedDevice = device;
+          _messages.add("Connected to ${device.platformName}");
+        });
+        _discoverServices(device);
+      } else if (state == BluetoothConnectionState.disconnected) {
+        setState(() {
+          _isConnected = false;
+          _connectedDevice = null;
+          _writeCharacteristic = null;
+          _messages.add("Disconnected from ${device.platformName}");
+        });
+        _showSnackBar("Disconnected from ${device.platformName}", isError: true);
+      }
+    });
+
+    try {
+      await device.connect();
+    } catch (e) {
+      debugPrint("Connection error: $e");
+      _showSnackBar("Connection failed: $e", isError: true);
+      setState(() {
+        _isConnected = false;
+      });
+    }
+  }
+
+  // Central Role: Discover services and characteristics on the connected device
+  void _discoverServices(BluetoothDevice device) async {
+    try {
+      List<BluetoothService> services = await device.discoverServices();
+      for (BluetoothService service in services) {
+        if (service.uuid.toString().toUpperCase() == serviceUuid.toUpperCase()) {
+          for (BluetoothCharacteristic characteristic in service.characteristics) {
+            if (characteristic.uuid.toString().toUpperCase() == characteristicUuid.toUpperCase()) {
+              setState(() {
+                _writeCharacteristic = characteristic;
+              });
+              _messages.add("Found characteristic for writing.");
+              _characteristicSubscription = characteristic.lastValueStream.listen((value) {
+                if (value.isNotEmpty) {
+                  String receivedMessage = utf8.decode(value);
+                  setState(() {
+                    _messages.add("Received: $receivedMessage");
+                  });
+                }
+              });
+              await characteristic.setNotifyValue(true); // Enable notifications
+              _showSnackBar("Ready to chat!");
+              return;
+            }
+          }
+        }
+      }
+      _showSnackBar("Required service/characteristic not found.", isError: true);
+    } catch (e) {
+      debugPrint("Service discovery error: $e");
+      _showSnackBar("Service discovery failed: $e", isError: true);
+    }
+  }
+
+  // Send a message via BLE characteristic
+  void _sendMessage() async {
+    if (_messageController.text.trim().isEmpty || _writeCharacteristic == null || !_isConnected) {
+      _showSnackBar("Not connected or no message to send.", isError: true);
+      return;
+    }
+
+    String message = _messageController.text.trim();
+    _messageController.clear();
+    setState(() {
+      _messages.add("You: $message");
+    });
+
+    try {
+      await _writeCharacteristic!.write(utf8.encode(message), withoutResponse: true);
+      _showSnackBar("Message sent!");
+    } catch (e) {
+      debugPrint("Send message error: $e");
+      _showSnackBar("Failed to send message: $e", isError: true);
+    }
+  }
+
+  // Handles navigation for the bottom navigation bar
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
-    // Navigate based on the selected index
     switch (index) {
       case 0: // Map
         Navigator.of(context).pushReplacementNamed('/home');
@@ -31,8 +214,10 @@ class _MessageListScreenState extends State<MessageListScreen> {
       case 1: // First Aid
         Navigator.of(context).pushReplacementNamed('/firstAidCategories');
         break;
-      case 2: // Messages
-        break; // Already on this screen
+      case 2: // Messages (stay on this screen, or navigate to general message list if preferred)
+      // If you want to go to the main message list, use:
+        Navigator.of(context).pushReplacementNamed('/messageList');
+        break;
       case 3: // Profile
         Navigator.of(context).pushReplacementNamed('/profile');
         break;
@@ -41,285 +226,83 @@ class _MessageListScreenState extends State<MessageListScreen> {
     }
   }
 
-  // Helper for showing snackbars
-  void _showSnackBar(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
-        backgroundColor: isError ? Colors.redAccent : neonBlue,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  // Function to create a new chat or open an existing one
-  Future<void> _startNewChat() async {
-    // For now, this will create a simple mock group chat or a direct chat.
-    // In a real app, you'd have a UI to select users or enter a group name.
-    // For demonstration, let's create a dummy chat.
-
-    final User? currentUser = _auth.currentUser;
-    if (currentUser == null) {
-      _showSnackBar('You must be logged in to start a chat.', isError: true);
-      return;
-    }
-
-    // Example: Create a new conversation document in Firestore
-    // For simplicity, let's create a fixed "Emergency Responders" group chat
-    // You would typically query for existing chats or allow user to select participants
-    try {
-      final String currentUserId = currentUser.uid;
-      final String currentUserName = currentUser.displayName ?? 'Anonymous User'; // Fallback for display name
-
-      // Check if a conversation with "Emergency Responders" already exists
-      final QuerySnapshot existingChats = await _firestore
-          .collection('conversations')
-          .where('participants', arrayContains: currentUserId)
-          .get();
-
-      String? existingConversationId;
-      String? chatTitleToNavigate;
-
-      for (var doc in existingChats.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        if (data['name'] == 'Emergency Responders Group') { // Check for specific group name
-          existingConversationId = doc.id;
-          chatTitleToNavigate = data['name'];
-          break;
-        }
-      }
-
-      if (existingConversationId != null) {
-        _showSnackBar('Opening existing chat with Emergency Responders.');
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => MessagesScreen(
-              conversationId: existingConversationId!,
-              chatTitle: chatTitleToNavigate!,
-            ),
-          ),
-        );
-      } else {
-        // Create a new conversation
-        final DocumentReference newConversationRef = await _firestore.collection('conversations').add({
-          'name': 'Emergency Responders Group', // A fixed group name for now
-          'participants': [currentUserId], // Add current user as participant
-          'lastMessageText': 'No messages yet.',
-          'lastMessageSenderId': '',
-          'lastMessageTimestamp': Timestamp.now(),
-          'createdAt': Timestamp.now(),
-        });
-
-        _showSnackBar('New chat created with Emergency Responders!');
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => MessagesScreen(
-              conversationId: newConversationRef.id,
-              chatTitle: 'Emergency Responders Group',
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      _showSnackBar('Failed to start new chat: $e', isError: true);
-      debugPrint('Error starting new chat: $e');
-    }
-  }
-
-
   @override
   Widget build(BuildContext context) {
-    final User? currentUser = _auth.currentUser;
-
-    if (currentUser == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Messages')),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.message_outlined, size: 80, color: Theme.of(context).colorScheme.primary.withOpacity(0.5)),
-              const SizedBox(height: 20),
-              Text(
-                'Please log in to view messages.',
-                style: Theme.of(context).textTheme.titleMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pushReplacementNamed('/login');
-                },
-                child: const Text('Login Now'),
-              ),
-            ],
-          ),
-        ),
-        bottomNavigationBar: CustomBottomNavigationBar(
-          selectedIndex: _selectedIndex,
-          onItemTapped: _onItemTapped,
-        ),
-      );
-    }
-
-    // Use StreamBuilder to listen for real-time updates from Firestore
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Messages'),
-        leading: IconButton(
+        title: const Text('BLE Chat Demo (Central Role)'),
+        backgroundColor: Colors.pink,
+        leading: IconButton( // Added back button here
           icon: const Icon(Icons.arrow_back_ios),
           onPressed: () {
-            Navigator.of(context).pop(); // Go back to previous screen (e.g., Home)
+            Navigator.of(context).pop(); // Pops the current screen off the stack
           },
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              // TODO: Implement search functionality
-              _showSnackBar('Search tapped! (Placeholder)');
-            },
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton(
+                      onPressed: _isScanning ? null : _startScan,
+                      child: Text(_isScanning ? 'Scanning...' : 'Start Scan (Central)'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _isConnected ? 'Connected to: ${_connectedDevice?.platformName ?? "Unknown"}' : 'Status: Disconnected',
+                  style: TextStyle(
+                    color: _isConnected ? Colors.greenAccent : Colors.redAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.more_vert),
-            onPressed: () {
-              // TODO: Implement more options
-              _showSnackBar('More options tapped! (Placeholder)');
-            },
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(8.0),
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Text(_messages[index]),
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    decoration: const InputDecoration(
+                      hintText: 'Enter message...',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.send),
+                  onPressed: _sendMessage,
+                ),
+              ],
+            ),
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        // Query conversations where the current user is a participant
-        stream: _firestore
-            .collection('conversations')
-            .where('participants', arrayContains: currentUser.uid)
-            .orderBy('lastMessageTimestamp', descending: true) // Order by most recent activity
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: neonBlue));
-          }
-          if (snapshot.hasError) {
-            debugPrint('Firestore Error: ${snapshot.error}');
-            return Center(child: Text('Error loading messages: ${snapshot.error}', style: Theme.of(context).textTheme.bodyMedium));
-          }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.message_outlined, size: 80, color: Theme.of(context).colorScheme.primary.withOpacity(0.5)),
-                  const SizedBox(height: 20),
-                  Text(
-                    'No conversations yet. Start a new chat!',
-                    style: Theme.of(context).textTheme.titleMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            );
-          }
-
-          final conversations = snapshot.data!.docs;
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(8.0),
-            itemCount: conversations.length,
-            itemBuilder: (context, index) {
-              final conversationData = conversations[index].data() as Map<String, dynamic>;
-              final String conversationId = conversations[index].id;
-              final String chatName = conversationData['name'] ?? 'Unknown Chat'; // Use 'name' field for chat title
-              final String lastMessage = conversationData['lastMessageText'] ?? 'No messages yet.';
-              final Timestamp? lastMessageTimestamp = conversationData['lastMessageTimestamp'] as Timestamp?;
-
-              // Format timestamp for display
-              String timeDisplay = 'N/A';
-              if (lastMessageTimestamp != null) {
-                final DateTime lastMsgDateTime = lastMessageTimestamp.toDate();
-                if (DateTime.now().difference(lastMsgDateTime).inDays == 0) {
-                  timeDisplay = '${lastMsgDateTime.hour % 12 == 0 ? 12 : lastMsgDateTime.hour % 12}:${lastMsgDateTime.minute.toString().padLeft(2, '0')} ${lastMsgDateTime.hour < 12 ? 'AM' : 'PM'}';
-                } else if (DateTime.now().difference(lastMsgDateTime).inDays == 1) {
-                  timeDisplay = 'Yesterday';
-                } else {
-                  timeDisplay = '${lastMsgDateTime.month}/${lastMsgDateTime.day}/${lastMsgDateTime.year.toString().substring(2, 4)}';
-                }
-              }
-
-              // Placeholder for avatar. In a real app, you'd fetch based on participants.
-              IconData avatarIcon = Icons.groups_outlined; // Default for group
-              if (conversationData['participants'] != null && conversationData['participants'].length == 2) {
-                avatarIcon = Icons.person_outline; // Assume 1-to-1 chat
-              }
-
-
-              return Card(
-                margin: const EdgeInsets.symmetric(vertical: 4.0),
-                color: Theme.of(context).cardTheme.color,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: neonBlue.withOpacity(0.2),
-                    child: Icon(avatarIcon, color: neonBlue),
-                  ),
-                  title: Text(
-                    chatName,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  subtitle: Text(
-                    lastMessage,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.8)),
-                  ),
-                  trailing: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        timeDisplay,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 10, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6)),
-                      ),
-                      // TODO: Implement unread count if needed (requires more complex Firestore queries/listeners)
-                      // if (conversation['unreadCount'] > 0)
-                      //   Container(
-                      //     margin: const EdgeInsets.only(top: 4),
-                      //     padding: const EdgeInsets.all(6),
-                      //     decoration: BoxDecoration(
-                      //       color: Colors.redAccent,
-                      //       shape: BoxShape.circle,
-                      //     ),
-                      //     child: Text(
-                      //       '${conversation['unreadCount']}',
-                      //       style: Theme.of(context).textTheme.labelLarge?.copyWith(color: Colors.white, fontSize: 12),
-                      //     ),
-                      //   ),
-                    ],
-                  ),
-                  onTap: () {
-                    // Navigate to the individual MessagesScreen, passing conversation ID and title
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => MessagesScreen(
-                          conversationId: conversationId,
-                          chatTitle: chatName,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _startNewChat, // Connect to function to start new chat
-        backgroundColor: neonBlue,
-        foregroundColor: Colors.black,
-        child: const Icon(Icons.chat),
-      ),
-      bottomNavigationBar: CustomBottomNavigationBar(
+      bottomNavigationBar: CustomBottomNavigationBar( // Add the bottom navigation bar
         selectedIndex: _selectedIndex,
         onItemTapped: _onItemTapped,
       ),

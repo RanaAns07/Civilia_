@@ -1,13 +1,13 @@
-// lib/screens/edit_profile_screen.dart (NEW FILE)
 import 'package:flutter/material.dart';
-import 'package:civilia/main.dart'; // For neonBlue
+import 'package:civilia_app/main.dart'; // For neonBlue
 import 'package:image_picker/image_picker.dart'; // For picking images
 import 'dart:io'; // For File
 import 'package:http/http.dart' as http; // For making HTTP requests
 import 'package:http_parser/http_parser.dart'; // For MediaType
 import 'package:mime/mime.dart'; // For lookupMimeType
-import 'package:civilia/utils/token_manager.dart'; // For access token
+import 'package:civilia_app/utils/token_manager.dart'; // For access token
 import 'dart:convert'; // For jsonDecode
+import 'package:civilia_app/utils/string_extensions.dart'; // For toCapitalized extension
 
 class EditProfileScreen extends StatefulWidget {
   final String initialUsername;
@@ -33,27 +33,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _usernameController;
   late TextEditingController _emailController;
-  late TextEditingController _phoneNumberController; // Assuming you'll add this
-  late String _selectedUserType;
-  File? _pickedImage;
+
+  // Add TextEditingController for phone number if needed
+  String? _selectedUserType;
+  XFile? _newProfileImage; // To store the newly picked image
   bool _isLoading = false;
 
   final List<String> _userTypeOptions = [
-    'Civilian',
-    'Crisis Responder',
-    'Aid Worker',
-    'Medic',
-    'Journalist',
+    'CIVILIAN',
+    'RESPONDER',
+    'AID_WORKER',
+    'MEDIC',
+    'JOURNALIST',
   ];
 
-  final String _baseUrl = 'https://web-production-15734.up.railway.app/api'; // IMPORTANT: Adjust this if needed!
+  // Define your Django backend URL
+  final String _baseUrl = 'https://web-production-15734.up.railway.app/api'; // Placeholder URL
 
   @override
   void initState() {
     super.initState();
     _usernameController = TextEditingController(text: widget.initialUsername);
     _emailController = TextEditingController(text: widget.initialEmail);
-    _phoneNumberController = TextEditingController(text: ''); // Initialize with empty or actual value
     _selectedUserType = widget.initialUserType;
   }
 
@@ -61,18 +62,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void dispose() {
     _usernameController.dispose();
     _emailController.dispose();
-    _phoneNumberController.dispose();
     super.dispose();
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: TextStyle(color: Theme
+            .of(context)
+            .colorScheme
+            .onPrimary)),
+        backgroundColor: isError ? Colors.redAccent : neonBlue,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
-
-    if (image != null) {
-      setState(() {
-        _pickedImage = File(image.path);
-      });
+    try {
+      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+      if (image != null) {
+        setState(() {
+          _newProfileImage = image;
+        });
+      }
+    } catch (e) {
+      _showSnackBar('Failed to pick image: $e', isError: true);
     }
   }
 
@@ -88,77 +104,63 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final String? accessToken = await TokenManager.getAccessToken();
     if (accessToken == null) {
       _showSnackBar('You are not logged in. Please login.', isError: true);
-      setState(() { _isLoading = false; });
-      Navigator.of(context).pushReplacementNamed('/login');
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) Navigator.of(context).pushReplacementNamed('/login');
       return;
     }
 
     try {
-      final Uri updateUri = Uri.parse('$_baseUrl/users/me/profile/');
-      var request = http.MultipartRequest('PATCH', updateUri);
+      var request = http.MultipartRequest(
+        'PATCH', // Use PATCH for partial updates
+        Uri.parse(
+            '$_baseUrl/users/me/profile/'), // Endpoint to update current user's profile
+      );
       request.headers['Authorization'] = 'Bearer $accessToken';
 
-      // Add fields
-      // Only include fields if they have changed or are being submitted
-      if (_usernameController.text != widget.initialUsername) {
-        request.fields['username'] = _usernameController.text;
-      }
-      if (_emailController.text != widget.initialEmail) {
-        request.fields['email'] = _emailController.text;
-      }
-      // Convert user type back to Django's format (e.g., "Aid Worker" -> "AID_WORKER")
-      final String djangoUserType = _selectedUserType.toUpperCase().replaceAll(' ', '_');
-      if (djangoUserType != widget.initialUserType.toUpperCase().replaceAll(' ', '_')) {
-        request.fields['user_type'] = djangoUserType;
-      }
-      // Add phone number if it's being managed
-      // request.fields['phone_number'] = _phoneNumberController.text; // Uncomment when phone_number is fully integrated
+      request.fields['username'] = _usernameController.text;
+      request.fields['email'] = _emailController.text;
+      request.fields['user_type'] = _selectedUserType!;
+      // Add phone_number field if you have it
+      // request.fields['phone_number'] = _phoneNumberController.text;
 
-      // Add image file if picked
-      if (_pickedImage != null) {
-        final mimeTypeData = lookupMimeType(_pickedImage!.path)?.split('/');
-        request.files.add(await http.MultipartFile.fromPath(
-          'profile_picture', // This must match the field name in your Django serializer
-          _pickedImage!.path,
-          contentType: mimeTypeData != null ? MediaType(mimeTypeData[0], mimeTypeData[1]) : null,
-        ));
+      if (_newProfileImage != null) {
+        String? mimeType = lookupMimeType(_newProfileImage!.path);
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'profile_picture', // Field name in Django serializer/model
+            _newProfileImage!.path,
+            contentType: MediaType.parse(
+                mimeType ?? 'image/jpeg'), // Default to jpeg if lookup fails
+          ),
+        );
       }
 
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      debugPrint('Update Profile Response Status: ${response.statusCode}');
-      debugPrint('Update Profile Response Body: ${response.body}');
+      var response = await request.send();
+      var responseBody = await response.stream.bytesToString();
 
       if (response.statusCode == 200) {
         _showSnackBar('Profile updated successfully!');
-        Navigator.of(context).pop(true); // Pop back and indicate success
+        if (mounted) Navigator.of(context).pop(
+            true); // Pop with true to indicate success
       } else {
-        final Map<String, dynamic> errorData = jsonDecode(response.body);
-        String errorMessage = 'Failed to update profile: ${response.statusCode}';
+        final Map<String, dynamic> errorData = jsonDecode(responseBody);
+        String errorMessage = 'Failed to update profile: ${response
+            .statusCode}';
         if (errorData.isNotEmpty) {
           errorMessage += '\n' + errorData.values.join(', ');
         }
         _showSnackBar(errorMessage, isError: true);
       }
     } catch (e) {
-      debugPrint("Error updating profile: $e");
-      _showSnackBar('Network error updating profile: $e', isError: true);
+      debugPrint('Network error updating profile: $e');
+      _showSnackBar('Network error: $e', isError: true);
     } finally {
       setState(() {
         _isLoading = false;
       });
     }
-  }
-
-  void _showSnackBar(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
-        backgroundColor: isError ? Colors.redAccent : neonBlue,
-        duration: const Duration(seconds: 2),
-      ),
-    );
   }
 
   @override
@@ -168,12 +170,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         title: const Text('Edit Profile'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios),
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
+          onPressed: () =>
+              Navigator.of(context).pop(false), // Pop with false on cancel
         ),
       ),
-      body: SingleChildScrollView(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: neonBlue))
+          : SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Form(
           key: _formKey,
@@ -183,33 +186,39 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               GestureDetector(
                 onTap: _pickImage,
                 child: Stack(
-                  alignment: Alignment.center,
+                  alignment: Alignment.bottomRight,
                   children: [
                     CircleAvatar(
                       radius: 70,
-                      backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.grey[800] : Colors.grey[200],
-                      backgroundImage: _pickedImage != null
-                          ? FileImage(_pickedImage!) as ImageProvider<Object>?
-                          : (widget.initialProfilePictureUrl != null && widget.initialProfilePictureUrl!.isNotEmpty
-                          ? NetworkImage(widget.initialProfilePictureUrl!) as ImageProvider<Object>?
-                          : const AssetImage('assets/images/profile_avatar.png')),
+                      backgroundColor: Theme
+                          .of(context)
+                          .brightness == Brightness.dark
+                          ? Colors.grey[800]
+                          : Colors.grey[200],
+                      backgroundImage: _newProfileImage != null
+                          ? FileImage(
+                          File(_newProfileImage!.path)) as ImageProvider<
+                          Object>?
+                          : (widget.initialProfilePictureUrl != null &&
+                          widget.initialProfilePictureUrl!.isNotEmpty
+                          ? NetworkImage(
+                          widget.initialProfilePictureUrl!) as ImageProvider<
+                          Object>?
+                          : const AssetImage(
+                          'assets/images/profile_avatar.png')),
                       onBackgroundImageError: (exception, stackTrace) {
-                        debugPrint('Error loading profile image: $exception');
+                        debugPrint(
+                            'Error loading initial profile image: $exception');
                       },
                     ),
                     Positioned(
-                      bottom: 0,
                       right: 0,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: neonBlue,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 2),
-                        ),
-                        child: const Padding(
-                          padding: EdgeInsets.all(8.0),
-                          child: Icon(Icons.camera_alt, color: Colors.black, size: 24),
-                        ),
+                      bottom: 0,
+                      child: CircleAvatar(
+                        backgroundColor: neonBlue,
+                        radius: 20,
+                        child: Icon(
+                            Icons.camera_alt, color: Colors.black, size: 20),
                       ),
                     ),
                   ],
@@ -228,6 +237,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   }
                   return null;
                 },
+                style: TextStyle(color: Theme
+                    .of(context)
+                    .textTheme
+                    .bodyLarge
+                    ?.color),
               ),
               const SizedBox(height: 20),
               TextFormField(
@@ -242,23 +256,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     return 'Please enter an email';
                   }
                   if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                    return 'Enter a valid email address';
+                    return 'Please enter a valid email';
                   }
                   return null;
                 },
+                style: TextStyle(color: Theme
+                    .of(context)
+                    .textTheme
+                    .bodyLarge
+                    ?.color),
               ),
               const SizedBox(height: 20),
-              // Optional: Phone Number field
-              TextFormField(
-                controller: _phoneNumberController,
-                keyboardType: TextInputType.phone,
-                decoration: InputDecoration(
-                  labelText: 'Phone Number',
-                  prefixIcon: const Icon(Icons.phone_outlined),
-                ),
-                // No validator for now, as it might be optional
-              ),
-              const SizedBox(height: 20),
+              // Add TextFormField for phone number if needed
+              // TextFormField(
+              //   controller: _phoneNumberController,
+              //   keyboardType: TextInputType.phone,
+              //   decoration: InputDecoration(
+              //     labelText: 'Phone Number (Optional)',
+              //     prefixIcon: const Icon(Icons.phone_outlined),
+              //   ),
+              //   style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color),
+              // ),
+              // const SizedBox(height: 20),
               DropdownButtonFormField<String>(
                 value: _selectedUserType,
                 decoration: InputDecoration(
@@ -269,12 +288,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     borderSide: BorderSide.none,
                   ),
                   filled: true,
-                  fillColor: Theme.of(context).inputDecorationTheme.fillColor,
+                  fillColor: Theme
+                      .of(context)
+                      .inputDecorationTheme
+                      .fillColor,
                 ),
                 items: _userTypeOptions.map((String type) {
                   return DropdownMenuItem<String>(
                     value: type,
-                    child: Text(type, style: Theme.of(context).textTheme.bodyMedium),
+                    child: Text(type.replaceAll('_', ' ').toCapitalized(),
+                        style: Theme
+                            .of(context)
+                            .textTheme
+                            .bodyMedium),
                   );
                 }).toList(),
                 onChanged: (String? newValue) {
@@ -282,8 +308,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     _selectedUserType = newValue!;
                   });
                 },
-                dropdownColor: Theme.of(context).cardColor, // Dropdown background color
-                style: Theme.of(context).textTheme.bodyMedium, // Text style for selected item
+                dropdownColor: Theme
+                    .of(context)
+                    .cardColor,
+                // Dropdown background color
+                style: Theme
+                    .of(context)
+                    .textTheme
+                    .bodyMedium, // Text style for selected item
               ),
               const SizedBox(height: 30),
               _isLoading
@@ -297,7 +329,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  textStyle: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
                   elevation: 5,
                 ),
                 child: const Text('Save Changes'),
